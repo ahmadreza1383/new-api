@@ -140,7 +140,7 @@ test('Cloudflare editing keeps the original shared Account ID field', async () =
   expect(screen.getByLabelText(/Account ID/)).toBeInTheDocument()
   expect(
     screen.queryByText(
-      'For multiple Cloudflare accounts, enter one JSON object with account_id and api_key per line, or a JSON array of these objects.'
+      'Enter a JSON array of Cloudflare accounts, each with account_id and api_key.'
     )
   ).not.toBeInTheDocument()
 })
@@ -154,10 +154,18 @@ test('Cloudflare Multiple Account explains account objects without a shared Acco
   render(<ConfigurationHarness currentRow={editingChannel} />)
   expect(
     await screen.findByText(
-      'For multiple Cloudflare accounts, enter one JSON object with account_id and api_key per line, or a JSON array of these objects.'
+      'Enter a JSON array of Cloudflare accounts, each with account_id and api_key.'
     )
   ).toBeInTheDocument()
   expect(screen.queryByLabelText(/Account ID/)).not.toBeInTheDocument()
+  expect(screen.getByRole('textbox', { name: 'API Key' })).toHaveValue('')
+  expect(screen.getByRole('button', { name: 'Format JSON' })).toBeInTheDocument()
+  expect(
+    screen.getByRole('combobox', { name: 'Key Update Mode' })
+  ).toBeInTheDocument()
+  expect(
+    screen.getByRole('combobox', { name: 'Multi-Key Strategy' })
+  ).toBeInTheDocument()
 })
 
 test('Cloudflare account deduplication preserves JSON credentials', async () => {
@@ -166,23 +174,30 @@ test('Cloudflare account deduplication preserves JSON credentials', async () => 
   await user.click(
     screen.getByRole('option', { name: /^Cloudflare Multiple Account / })
   )
-  await user.click(screen.getByRole('combobox', { name: 'Add Mode' }))
-  await user.click(
-    screen.getByRole('option', {
-      name: 'Multi-Key Mode (multiple keys, one channel)',
-    })
-  )
-  const key = screen.getByLabelText('API Key *')
-  fireEvent.change(key, {
+  expect(
+    screen.queryByRole('combobox', { name: 'Add Mode' })
+  ).not.toBeInTheDocument()
+  expect(
+    await screen.findByRole('combobox', { name: 'Multi-Key Strategy' })
+  ).toBeInTheDocument()
+  const key = screen.getByRole('textbox', { name: 'API Key' })
+  fireEvent.input(key, {
     target: {
       value:
         '[\n{"account_id":"account-one","api_key":"key-one"},\n{"api_key":"key-one","account_id":"account-one"}\n]',
     },
   })
   await user.click(screen.getByRole('button', { name: 'Remove Duplicates' }))
-  expect(key).toHaveValue(
-    '{"account_id":"account-one","api_key":"key-one"}'
-  )
+  expect(JSON.parse((key as HTMLTextAreaElement).value)).toEqual([
+    { account_id: 'account-one', api_key: 'key-one' },
+  ])
+  await user.click(screen.getByRole('button', { name: 'Change provider' }))
+  await user.click(screen.getByRole('option', { name: /^Cloudflare Access/ }))
+  expect(screen.getByRole('combobox', { name: 'Add Mode' })).toBeInTheDocument()
+  expect(screen.getByLabelText('API Key *')).toBeInTheDocument()
+  expect(
+    screen.queryByRole('button', { name: 'Format JSON' })
+  ).not.toBeInTheDocument()
 })
 
 beforeEach(() => {

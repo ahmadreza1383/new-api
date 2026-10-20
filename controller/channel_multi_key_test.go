@@ -232,6 +232,44 @@ func TestCloudflareMultiAccountChannelLifecycle(t *testing.T) {
 		assert.Equal(t, accountID, credential.AccountID)
 	}
 	assert.Equal(t, 2, loaded.ChannelInfo.MultiKeySize)
+
+	t.Run("earlier single-account records require authorized conversion", func(t *testing.T) {
+		single := &model.Channel{Name: "cloudflare-earlier-single", Type: constant.ChannelCloudflareMulti,
+			Key: "{\n\"account_id\":\"saved-account\",\n\"api_key\":\"saved-secret\"\n}",
+			Models: "public-model", Group: "default", Status: common.ChannelStatusEnabled}
+		require.NoError(t, single.Insert())
+		t.Cleanup(func() { require.NoError(t, single.Delete()) })
+		payload := map[string]any{"id": single.Id, "name": "converted account"}
+		body, err := common.Marshal(payload)
+		require.NoError(t, err)
+		recorder := httptest.NewRecorder()
+		ctx, _ := gin.CreateTestContext(recorder)
+		ctx.Set("role", common.RoleCommonUser)
+		ctx.Request = httptest.NewRequest(http.MethodPut, "/api/channel/", bytes.NewReader(body))
+		UpdateChannel(ctx)
+		var result struct {
+			Success bool `json:"success"`
+		}
+		require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &result))
+		assert.False(t, result.Success)
+		before, err := model.GetChannelById(single.Id, true)
+		require.NoError(t, err)
+		assert.False(t, before.ChannelInfo.IsMultiKey)
+		assert.Equal(t, single.Key, before.Key)
+
+		callCloudflareChannelAPI(t, root.Id, UpdateChannel, payload)
+		converted, err := model.GetChannelById(single.Id, true)
+		require.NoError(t, err)
+		assert.True(t, converted.ChannelInfo.IsMultiKey)
+		assert.Equal(t, 1, converted.ChannelInfo.MultiKeySize)
+		assert.Equal(t, constant.MultiKeyModeRandom, converted.ChannelInfo.MultiKeyMode)
+		key, _, apiErr := converted.GetNextEnabledKey()
+		require.Nil(t, apiErr)
+		credential, err := cloudflaremulti.ParseCredential(key)
+		require.NoError(t, err)
+		assert.Equal(t, "saved-account", credential.AccountID)
+		assert.Equal(t, "saved-secret", credential.APIKey)
+	})
 }
 
 func callCloudflareChannelAPI(t *testing.T, rootID int, handler gin.HandlerFunc, payload any) *httptest.ResponseRecorder {
@@ -267,5 +305,20 @@ func TestCloudflareRejectsInvalidAccountsBeforeSaving(t *testing.T) {
 		AddChannel(ctx)
 		assert.Contains(t, recorder.Body.String(), cloudflaremulti.InvalidCredentials)
 		assert.NotContains(t, recorder.Body.String(), "secret-invalid")
+	}
+	for _, mode := range []string{"single", "batch", ""} {
+		t.Run("unsupported mode/"+mode, func(t *testing.T) {
+			recorder := httptest.NewRecorder()
+			ctx, _ := gin.CreateTestContext(recorder)
+			body, err := common.Marshal(AddChannelRequest{Mode: mode, Channel: &model.Channel{
+				Type: constant.ChannelCloudflareMulti, Name: "invalid-mode",
+				Key: `{"account_id":"account-one","api_key":"secret-invalid"}`,
+			}})
+			require.NoError(t, err)
+			ctx.Request = httptest.NewRequest(http.MethodPost, "/api/channel/", bytes.NewReader(body))
+			AddChannel(ctx)
+			assert.Contains(t, recorder.Body.String(), "This channel does not support the selected add mode")
+			assert.NotContains(t, recorder.Body.String(), "secret-invalid")
+		})
 	}
 }

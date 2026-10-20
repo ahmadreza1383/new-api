@@ -27,6 +27,8 @@ import {
 // Channel Type Configuration
 // ============================================================================
 
+export type ChannelAddMode = 'single' | 'batch' | 'multi_to_single'
+
 export interface ChannelTypeConfig {
   id: number
   name: string
@@ -34,6 +36,10 @@ export interface ChannelTypeConfig {
   requiresOrganization?: boolean
   requiresRegion?: boolean
   supportedModels?: string[]
+  authentication?: {
+    allowedAddModes: readonly [ChannelAddMode, ...ChannelAddMode[]]
+    credentialEditor: 'text' | 'json'
+  }
   hints?: {
     baseUrl?: string
     key?: string
@@ -54,8 +60,12 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
     id: CHANNEL_TYPE_CLOUDFLARE_MULTI,
     name: CHANNEL_TYPES[CHANNEL_TYPE_CLOUDFLARE_MULTI],
     icon: 'Cloudflare',
+    authentication: {
+      allowedAddModes: ['multi_to_single'],
+      credentialEditor: 'json',
+    },
     hints: {
-      key: 'For multiple Cloudflare accounts, enter one JSON object with account_id and api_key per line, or a JSON array of these objects.',
+      key: 'Enter a JSON array of Cloudflare accounts, each with account_id and api_key.',
     },
   },
   [CHANNEL_TYPE_SGLANG]: {

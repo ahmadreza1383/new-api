@@ -571,10 +571,6 @@ export function ChannelMutateDrawer({
   const { channelKey, isChannelKeyLoading, handleRevealKey, verification } =
     useChannelKeyDisclosure(open, channelId)
 
-  // Check if this is a multi-key channel
-  const isMultiKeyChannel =
-    isEditing && channelData?.data?.channel_info?.is_multi_key === true
-
   // Form setup
   const form = useForm<ChannelFormValues>({
     resolver: zodResolver(channelFormSchema),
@@ -588,6 +584,15 @@ export function ChannelMutateDrawer({
   const keyMode = formValues.key_mode
   const currentGroups = formValues.group
   const currentType = formValues.type
+  const channelTypeConfig = getChannelTypeConfig(currentType)
+  const authentication = channelTypeConfig.authentication
+  const requiresMultiKeyChannel =
+    authentication?.allowedAddModes.length === 1 &&
+    authentication.allowedAddModes[0] === 'multi_to_single'
+  const isMultiKeyChannel =
+    isEditing &&
+    (channelData?.data?.channel_info?.is_multi_key === true ||
+      requiresMultiKeyChannel)
   const baseUrlPlaceholder = [CHANNEL_TYPE_VLLM, CHANNEL_TYPE_SGLANG].includes(
     currentType
   )
@@ -698,11 +703,17 @@ export function ChannelMutateDrawer({
   const supportsMultiKeyAddMode =
     currentType !== 57 && !(currentType === 41 && vertexKeyType === 'api_key')
   const addModeOptions = useMemo(
-    () =>
-      supportsMultiKeyAddMode
+    () => {
+      const options = supportsMultiKeyAddMode
         ? ADD_MODE_OPTIONS
-        : ADD_MODE_OPTIONS.filter((option) => option.value === 'single'),
-    [supportsMultiKeyAddMode]
+        : ADD_MODE_OPTIONS.filter((option) => option.value === 'single')
+      return options.filter(
+        (option) =>
+          !authentication ||
+          authentication.allowedAddModes.some((mode) => mode === option.value)
+      )
+    },
+    [authentication, supportsMultiKeyAddMode]
   )
 
   const advancedCustomStats = useMemo(
@@ -1115,14 +1126,20 @@ export function ChannelMutateDrawer({
   }, [currentBaseUrl, currentType, form])
 
   useEffect(() => {
-    if (isEditing || supportsMultiKeyAddMode) return
-    if (multiKeyMode && multiKeyMode !== 'single') {
-      form.setValue('multi_key_mode', 'single', {
-        shouldDirty: true,
-        shouldValidate: true,
-      })
+    if (
+      (isEditing && authentication?.allowedAddModes.length !== 1) ||
+      addModeOptions.some((option) => option.value === multiKeyMode)
+    ) {
+      return
     }
-  }, [form, isEditing, multiKeyMode, supportsMultiKeyAddMode])
+    const defaultMode = addModeOptions[0]?.value
+    if (!defaultMode) return
+    form.setValue(
+      'multi_key_mode',
+      defaultMode as ChannelFormValues['multi_key_mode'],
+      { shouldDirty: true, shouldValidate: true }
+    )
+  }, [addModeOptions, authentication, form, isEditing, multiKeyMode])
 
   // Validate base_url - warn if it ends with /v1
   useEffect(() => {
@@ -1164,7 +1181,17 @@ export function ChannelMutateDrawer({
     if (result.removedCount === 0) {
       toast.info(t('No duplicate keys found'))
     } else {
-      form.setValue('key', result.deduplicatedText)
+      let deduplicatedText = result.deduplicatedText
+      if (currentType === CHANNEL_TYPE_CLOUDFLARE_MULTI) {
+        deduplicatedText = JSON.stringify(
+          deduplicatedText
+            .split('\n')
+            .map((entry) => JSON.parse(entry) as unknown),
+          null,
+          2
+        )
+      }
+      form.setValue('key', deduplicatedText)
       toast.success(
         t(
           'Removed {{removed}} duplicate key(s). Before: {{before}}, After: {{after}}',
@@ -4346,7 +4373,7 @@ export function ChannelMutateDrawer({
             )}
 
             <ChannelAuthSection>
-              {!isEditing && (
+              {!isEditing && authentication?.allowedAddModes.length !== 1 && (
                 <FormField
                   control={form.control}
                   name='multi_key_mode'
@@ -4450,22 +4477,32 @@ export function ChannelMutateDrawer({
                     <FormItem>
                       <FormLabel required>{t('API Key')}</FormLabel>
                       <FormControl>
-                        <Textarea
-                          placeholder={keyPlaceholder}
-                          rows={isBatchMode ? 8 : 4}
-                          {...field}
-                        />
+                        {authentication?.credentialEditor === 'json' ? (
+                          <JsonCodeEditor
+                            value={field.value || ''}
+                            onChange={field.onChange}
+                            onBlur={field.onBlur}
+                            name={field.name}
+                            textareaRef={field.ref}
+                            disabled={sensitiveLocked || isSubmitting}
+                            ariaLabel={t('API Key')}
+                            placeholder='[{"account_id":"...","api_key":"..."}]'
+                          />
+                        ) : (
+                          <Textarea
+                            placeholder={keyPlaceholder}
+                            rows={isBatchMode ? 8 : 4}
+                            {...field}
+                          />
+                        )}
                       </FormControl>
                       <FormDescription>
                         <span className='flex flex-col gap-2'>
                           <span>{keyDescription}</span>
-                          {currentType === CHANNEL_TYPE_CLOUDFLARE_MULTI && (
-                            <span>
-                              {t(
-                                'For multiple Cloudflare accounts, enter one JSON object with account_id and api_key per line, or a JSON array of these objects.'
-                              )}
-                            </span>
-                          )}
+                          {authentication?.credentialEditor === 'json' &&
+                            channelTypeConfig.hints?.key && (
+                              <span>{t(channelTypeConfig.hints.key)}</span>
+                            )}
                           {!isEditing && isBatchMode && (
                             <Button
                               type='button'

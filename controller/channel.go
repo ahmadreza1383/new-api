@@ -766,13 +766,20 @@ func AddChannel(c *gin.Context) {
 		return
 	}
 	if addChannelRequest.Channel.Type == constant.ChannelCloudflareMulti {
+		if addChannelRequest.Mode != "multi_to_single" {
+			common.ApiErrorT(c, "This channel does not support the selected add mode")
+			return
+		}
+		if addChannelRequest.MultiKeyMode == "" {
+			addChannelRequest.MultiKeyMode = constant.MultiKeyModeRandom
+		}
+		if addChannelRequest.MultiKeyMode != constant.MultiKeyModeRandom && addChannelRequest.MultiKeyMode != constant.MultiKeyModePolling {
+			common.ApiErrorT(c, "Invalid parameters")
+			return
+		}
 		entries, err := cloudflaremulti.NormalizeKeys(addChannelRequest.Channel.Key)
 		if err != nil {
 			common.ApiError(c, err)
-			return
-		}
-		if addChannelRequest.Mode == "single" && len(entries) != 1 {
-			common.ApiErrorT(c, "Use Multi-Key Mode or batch creation for multiple Cloudflare accounts")
 			return
 		}
 		addChannelRequest.Channel.Key = strings.Join(entries, "\n")
@@ -1169,7 +1176,26 @@ func UpdateChannel(c *gin.Context) {
 	if effectiveType == 0 {
 		effectiveType = originChannel.Type
 	}
-	if effectiveType == constant.ChannelCloudflareMulti && (channel.Key != "" || originChannel.Type != effectiveType) {
+	promoteCloudflareMulti := effectiveType == constant.ChannelCloudflareMulti && !originChannel.ChannelInfo.IsMultiKey
+	if promoteCloudflareMulti {
+		// Earlier versions allowed single-key records for this channel type.
+		// Converting their authentication state requires sensitive-write access.
+		if !authz.Can(c.GetInt("id"), c.GetInt("role"), authz.ChannelSensitiveWrite) {
+			common.ApiErrorT(c, "Unauthorized, insufficient privileges")
+			return
+		}
+		channel.ChannelInfo.IsMultiKey = true
+	}
+	if effectiveType == constant.ChannelCloudflareMulti {
+		if channel.ChannelInfo.MultiKeyMode == "" {
+			channel.ChannelInfo.MultiKeyMode = constant.MultiKeyModeRandom
+		}
+		if channel.ChannelInfo.MultiKeyMode != constant.MultiKeyModeRandom && channel.ChannelInfo.MultiKeyMode != constant.MultiKeyModePolling {
+			common.ApiErrorT(c, "Invalid parameters")
+			return
+		}
+	}
+	if effectiveType == constant.ChannelCloudflareMulti && (channel.Key != "" || originChannel.Type != effectiveType || promoteCloudflareMulti) {
 		keys := originChannel.Key
 		if channel.Key != "" {
 			keys = channel.Key
@@ -1179,17 +1205,17 @@ func UpdateChannel(c *gin.Context) {
 			common.ApiError(c, err)
 			return
 		}
-		if !channel.ChannelInfo.IsMultiKey && len(entries) != 1 {
-			common.ApiErrorT(c, "Use Multi-Key Mode or batch creation for multiple Cloudflare accounts")
-			return
-		}
-		if channel.Key != "" {
+		if channel.Key != "" || promoteCloudflareMulti {
 			channel.Key = strings.Join(entries, "\n")
 		}
 		if channel.KeyMode != nil && *channel.KeyMode == "append" && originChannel.Key != "" {
-			if _, err := cloudflaremulti.NormalizeKeys(originChannel.Key); err != nil {
+			existingKeys, err := cloudflaremulti.NormalizeKeys(originChannel.Key)
+			if err != nil {
 				common.ApiError(c, err)
 				return
+			}
+			if promoteCloudflareMulti {
+				originChannel.Key = strings.Join(existingKeys, "\n")
 			}
 		}
 	}

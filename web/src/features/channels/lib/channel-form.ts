@@ -42,6 +42,7 @@ import {
   validateAdvancedCustomConfig,
 } from './advanced-custom'
 import { readTaskExtendPluginKeys } from './channel-plugin-extensions'
+import { getChannelTypeConfig } from './channel-type-config'
 import {
   CLOUDFLARE_ACCOUNT_CREDENTIALS_ERROR,
   normalizeCloudflareAccounts,
@@ -367,6 +368,20 @@ export const channelFormSchema = z
       )
     }
 
+    const allowedAddModes =
+      getChannelTypeConfig(data.type).authentication?.allowedAddModes
+    if (
+      allowedAddModes &&
+      data.multi_key_mode &&
+      !allowedAddModes.includes(data.multi_key_mode)
+    ) {
+      addRequiredIssue(
+        ctx,
+        'multi_key_mode',
+        'This channel does not support the selected add mode'
+      )
+    }
+
     if (data.type === CHANNEL_TYPE_CLOUDFLARE_MULTI && data.key?.trim()) {
       try {
         normalizeCloudflareAccounts(data.key)
@@ -637,7 +652,9 @@ export function transformChannelToFormDefaults(
     header_override: channel.header_override || '',
     settings: channel.settings || '{}',
     other: channel.other || '',
-    multi_key_mode: 'single',
+    multi_key_mode:
+      getChannelTypeConfig(channel.type).authentication?.allowedAddModes[0] ||
+      'single',
     multi_key_type: channel.channel_info.multi_key_mode || 'random',
     batch_add_set_key_prefix_2_name: false,
     key_mode: 'append', // Default to append mode for editing multi-key channels
@@ -880,7 +897,12 @@ export function transformFormDataToCreatePayload(formData: ChannelFormValues): {
   batch_add_set_key_prefix_2_name?: boolean
   channel: Partial<Channel>
 } {
-  const mode = formData.multi_key_mode || 'single'
+  const allowedAddModes =
+    getChannelTypeConfig(formData.type).authentication?.allowedAddModes
+  const mode =
+    allowedAddModes?.length === 1
+      ? allowedAddModes[0]
+      : formData.multi_key_mode || 'single'
 
   const channel: Partial<Channel> = {
     name: formData.name,

@@ -151,7 +151,7 @@ export const CHANNEL_PROVIDER_PRESENTATION: Partial<
   [CHANNEL_TYPE_CLOUDFLARE_MULTI]: {
     descriptionKey: 'Access models through Cloudflare Workers AI',
     detailKey:
-      'For multiple Cloudflare accounts, enter one JSON object with account_id and api_key per line, or a JSON array of these objects.',
+      'Enter a JSON array of Cloudflare accounts, each with account_id and api_key.',
   },
   40: { descriptionKey: 'Connect to SiliconFlow model inference services' },
   41: { descriptionKey: 'Access models through Google Cloud Vertex AI' },

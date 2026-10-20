@@ -61,6 +61,8 @@ export const STATIC_I18N_KEYS = [
   'Connect to Jina embedding and reranking services',
   'Access models through Cloudflare Workers AI',
   'Cloudflare Multiple Account',
+  'Enter a JSON array of Cloudflare accounts, each with account_id and api_key.',
+  'This channel does not support the selected add mode',
   'Invalid Cloudflare account credentials: use JSON objects with account_id and api_key',
   'Connect to SiliconFlow model inference services',
   'Access models through Google Cloud Vertex AI',

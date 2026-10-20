@@ -20,11 +20,13 @@ For commercial licensing, please contact support@quantumnous.com
 import { describe, expect, test } from 'vitest'
 
 import { CHANNEL_TYPE_CLOUDFLARE_MULTI } from '../../constants'
+import { channelSchema } from '../../types'
 import {
   CHANNEL_FORM_DEFAULT_VALUES,
   channelFormSchema,
   transformFormDataToCreatePayload,
   transformFormDataToUpdatePayload,
+  transformChannelToFormDefaults,
   type ChannelFormValues,
 } from '../channel-form'
 import {
@@ -61,6 +63,54 @@ describe('Cloudflare account credentials', () => {
     expect(payload.channel.models).toBe('public-model')
     expect(payload.channel.model_mapping).toBe(
       '{"public-model":"@cf/test/model"}'
+    )
+  })
+
+  test.each(['single', 'batch'] as const)(
+    'rejects %s creation for the multi-account channel',
+    (mode) => {
+      const result = channelFormSchema.safeParse(
+        cloudflareForm({ multi_key_mode: mode })
+      )
+      expect(result.success).toBe(false)
+      if (result.success) return
+      expect(result.error.issues).toContainEqual(
+        expect.objectContaining({
+          path: ['multi_key_mode'],
+          message: 'This channel does not support the selected add mode',
+        })
+      )
+    }
+  )
+
+  test('uses the required creation mode when the draft leaves it unset', () => {
+    const payload = transformFormDataToCreatePayload(
+      channelFormSchema.parse(cloudflareForm({ multi_key_mode: undefined }))
+    )
+    expect(payload.mode).toBe('multi_to_single')
+    expect(payload.multi_key_mode).toBe('polling')
+  })
+
+  test('editing an earlier single-account record keeps saved credentials hidden', () => {
+    const channel = channelSchema.parse({
+      id: 7,
+      name: 'Existing account',
+      type: CHANNEL_TYPE_CLOUDFLARE_MULTI,
+      key: '{"account_id":"saved-account","api_key":"saved-secret"}',
+      models: 'public-model',
+      group: 'default',
+      status: 1,
+      created_time: 1,
+      test_time: 0,
+      response_time: 0,
+      balance_updated_time: 0,
+    })
+    const defaults = transformChannelToFormDefaults(channel)
+    expect(defaults.key).toBe('')
+    expect(defaults.multi_key_mode).toBe('multi_to_single')
+    expect(channelFormSchema.safeParse(defaults).success).toBe(true)
+    expect(transformFormDataToUpdatePayload(defaults, 7)).not.toHaveProperty(
+      'key'
     )
   })
 
