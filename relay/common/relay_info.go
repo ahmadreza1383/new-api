@@ -440,6 +440,7 @@ var streamSupportedChannels = map[int]bool{
 	constant.ChannelTypeAws:            true,
 	constant.ChannelTypeGemini:         true,
 	constant.ChannelCloudflare:         true,
+	constant.ChannelCloudflareMulti:    true,
 	constant.ChannelTypeAzure:          true,
 	constant.ChannelTypeVolcEngine:     true,
 	constant.ChannelTypeOllama:         true,

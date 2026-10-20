@@ -38,6 +38,8 @@ export const CHANNEL_TYPE_VLLM = 62
 
 export const CHANNEL_TYPE_SGLANG = 63
 
+export const CHANNEL_TYPE_CLOUDFLARE_MULTI = 64
+
 export const CHANNEL_TYPES = {
   0: 'Unknown',
   1: 'OpenAI',
@@ -99,6 +101,7 @@ export const CHANNEL_TYPES = {
   61: 'Task Plugin',
   62: 'vLLM',
   63: 'SGLang',
+  [CHANNEL_TYPE_CLOUDFLARE_MULTI]: 'Cloudflare Multiple Account',
 } as const
 
 export type ChannelProviderPresentation = {
@@ -145,6 +148,11 @@ export const CHANNEL_PROVIDER_PRESENTATION: Partial<
   37: { descriptionKey: 'Connect to Dify applications and workflows' },
   38: { descriptionKey: 'Connect to Jina embedding and reranking services' },
   39: { descriptionKey: 'Access models through Cloudflare Workers AI' },
+  [CHANNEL_TYPE_CLOUDFLARE_MULTI]: {
+    descriptionKey: 'Access models through Cloudflare Workers AI',
+    detailKey:
+      'For multiple Cloudflare accounts, enter one JSON object with account_id and api_key per line, or a JSON array of these objects.',
+  },
   40: { descriptionKey: 'Connect to SiliconFlow model inference services' },
   41: { descriptionKey: 'Access models through Google Cloud Vertex AI' },
   42: { descriptionKey: 'Connect to Mistral AI model services' },
@@ -189,8 +197,9 @@ export const CHANNEL_PROVIDER_PRESENTATION: Partial<
 
 const CHANNEL_TYPE_DISPLAY_ORDER: number[] = [
   1, 14, 24, 33, 43, 3, 41, 17, 45, 25, 26, 23, 48, 60, 58, 59, 61, 42, 34, 20,
-  4, 62, 40, 27, 15, 46, 18, 31, 35, 49, 19, 47, 37, 38, 39, 11, 8, 57, 22, 21,
-  44, 2, 5, 36, 50, 51, 52, 53, 54, 55, 56,
+  4, 62, 40, 27, 15, 46, 18, 31, 35, 49, 19, 47, 37, 38, 39,
+  CHANNEL_TYPE_CLOUDFLARE_MULTI, 11, 8, 57, 22, 21, 44, 2, 5, 36, 50, 51, 52, 53,
+  54, 55, 56,
 ]
 
 export const CHANNEL_TYPE_OPTIONS: { value: number; label: string }[] = (() => {

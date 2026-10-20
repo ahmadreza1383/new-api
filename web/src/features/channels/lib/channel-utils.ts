@@ -20,6 +20,7 @@ import { formatCurrencyFromUSD, formatQuotaWithCurrency } from '@/lib/currency'
 import { formatTimestampToDate } from '@/lib/format'
 
 import {
+  CHANNEL_TYPE_CLOUDFLARE_MULTI,
   CHANNEL_STATUS_CONFIG,
   CHANNEL_TYPES,
   MULTI_KEY_STATUS_CONFIG,
@@ -69,6 +70,7 @@ export function getChannelTypeIcon(type: number): string {
     // Cloud providers
     33: 'Aws', // AWS
     39: 'Cloudflare', // Cloudflare
+    [CHANNEL_TYPE_CLOUDFLARE_MULTI]: 'Cloudflare',
 
     // Chinese providers
     15: 'Baidu', // Baidu

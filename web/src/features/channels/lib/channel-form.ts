@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { z } from 'zod'
 
 import {
+  CHANNEL_TYPE_CLOUDFLARE_MULTI,
   CLAUDE_FIELD_PASSTHROUGH_TYPES,
   CHANNEL_TYPE_NEW_API,
   CHANNEL_TYPE_OLLAMA,
@@ -41,6 +42,10 @@ import {
   validateAdvancedCustomConfig,
 } from './advanced-custom'
 import { readTaskExtendPluginKeys } from './channel-plugin-extensions'
+import {
+  CLOUDFLARE_ACCOUNT_CREDENTIALS_ERROR,
+  normalizeCloudflareAccounts,
+} from './cloudflare-multi-account'
 import { supportsResponsesWebSocket } from './responses-websocket'
 
 // ============================================================================
@@ -360,6 +365,14 @@ export const channelFormSchema = z
         'other',
         'This channel type requires additional configuration'
       )
+    }
+
+    if (data.type === CHANNEL_TYPE_CLOUDFLARE_MULTI && data.key?.trim()) {
+      try {
+        normalizeCloudflareAccounts(data.key)
+      } catch {
+        addRequiredIssue(ctx, 'key', CLOUDFLARE_ACCOUNT_CREDENTIALS_ERROR)
+      }
     }
 
     if (data.type === 57) {
@@ -873,7 +886,10 @@ export function transformFormDataToCreatePayload(formData: ChannelFormValues): {
     name: formData.name,
     type: formData.type,
     base_url: normalizeBaseUrl(formData.base_url) || null,
-    key: formData.key,
+    key:
+      formData.type === CHANNEL_TYPE_CLOUDFLARE_MULTI && formData.key?.trim()
+        ? normalizeCloudflareAccounts(formData.key).join('\n')
+        : formData.key,
     openai_organization: formData.openai_organization || null,
     models: formData.models,
     group: formatGroups(formData.group),
@@ -942,7 +958,10 @@ export function transformFormDataToUpdatePayload(
 
   // Only include key if it was changed (not empty)
   if (formData.key && formData.key.trim()) {
-    payload.key = formData.key
+    payload.key =
+      formData.type === CHANNEL_TYPE_CLOUDFLARE_MULTI
+        ? normalizeCloudflareAccounts(formData.key).join('\n')
+        : formData.key
   }
 
   // Clean up empty strings to null for optional fields

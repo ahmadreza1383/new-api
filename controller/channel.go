@@ -16,6 +16,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
 	relaychannel "github.com/QuantumNous/new-api/relay/channel"
+	"github.com/QuantumNous/new-api/relay/channel/cloudflaremulti"
 	"github.com/QuantumNous/new-api/relay/channel/ollama"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
@@ -289,6 +290,13 @@ func buildFetchModelsHeaders(channel *model.Channel, key string) (http.Header, e
 	switch channel.Type {
 	case constant.ChannelTypeAnthropic:
 		headers = GetClaudeAuthHeader(key)
+	case constant.ChannelCloudflareMulti:
+		credential, err := cloudflaremulti.ParseCredential(key)
+		if err != nil {
+			return nil, err
+		}
+		key = credential.APIKey
+		headers = GetAuthHeader(key)
 	default:
 		headers = GetAuthHeader(key)
 	}
@@ -757,6 +765,18 @@ func AddChannel(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	if addChannelRequest.Channel.Type == constant.ChannelCloudflareMulti {
+		entries, err := cloudflaremulti.NormalizeKeys(addChannelRequest.Channel.Key)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		if addChannelRequest.Mode == "single" && len(entries) != 1 {
+			common.ApiErrorT(c, "Use Multi-Key Mode or batch creation for multiple Cloudflare accounts")
+			return
+		}
+		addChannelRequest.Channel.Key = strings.Join(entries, "\n")
+	}
 
 	addChannelRequest.Channel.CreatedTime = common.GetTimestamp()
 	keys := make([]string, 0)
@@ -1142,6 +1162,36 @@ func UpdateChannel(c *gin.Context) {
 	// If the request explicitly specifies a new MultiKeyMode, apply it on top of the original info.
 	if channel.MultiKeyMode != nil && *channel.MultiKeyMode != "" {
 		channel.ChannelInfo.MultiKeyMode = constant.MultiKeyMode(*channel.MultiKeyMode)
+	}
+	// Partial updates may omit the type. Keep stored key identities intact
+	// during metadata edits so disabled-account tracking remains stable.
+	effectiveType := channel.Type
+	if effectiveType == 0 {
+		effectiveType = originChannel.Type
+	}
+	if effectiveType == constant.ChannelCloudflareMulti && (channel.Key != "" || originChannel.Type != effectiveType) {
+		keys := originChannel.Key
+		if channel.Key != "" {
+			keys = channel.Key
+		}
+		entries, err := cloudflaremulti.NormalizeKeys(keys)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		if !channel.ChannelInfo.IsMultiKey && len(entries) != 1 {
+			common.ApiErrorT(c, "Use Multi-Key Mode or batch creation for multiple Cloudflare accounts")
+			return
+		}
+		if channel.Key != "" {
+			channel.Key = strings.Join(entries, "\n")
+		}
+		if channel.KeyMode != nil && *channel.KeyMode == "append" && originChannel.Key != "" {
+			if _, err := cloudflaremulti.NormalizeKeys(originChannel.Key); err != nil {
+				common.ApiError(c, err)
+				return
+			}
+		}
 	}
 
 	// 处理多key模式下的密钥追加/覆盖逻辑
@@ -1727,6 +1777,13 @@ func ManageMultiKeys(c *gin.Context) {
 			keyPreview := key
 			if len(key) > 10 {
 				keyPreview = key[:10] + "..."
+			}
+			if channel.Type == constant.ChannelCloudflareMulti {
+				// Structured JSON may put api_key first; never show a raw prefix.
+				keyPreview = "Cloudflare Multiple Account"
+				if credential, err := cloudflaremulti.ParseCredential(key); err == nil {
+					keyPreview = credential.AccountID
+				}
 			}
 
 			allKeyStatusList = append(allKeyStatusList, KeyStatus{

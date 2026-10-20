@@ -43,6 +43,7 @@ import { useAuthStore } from '@/stores/auth-store'
 
 import type { TaskPluginOption } from '../../api'
 import {
+  CHANNEL_TYPE_CLOUDFLARE_MULTI,
   CHANNEL_TYPE_OLLAMA,
   CHANNEL_TYPE_SGLANG,
   CHANNEL_TYPE_VLLM,
@@ -129,6 +130,60 @@ function ConfigurationHarness(props: {
     </QueryClientProvider>
   )
 }
+
+test('Cloudflare editing keeps the original shared Account ID field', async () => {
+  editingChannel = { ...editingChannel, type: 39, other: '' }
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+  expect(
+    await screen.findByText('Your Cloudflare Account ID')
+  ).toBeInTheDocument()
+  expect(screen.getByLabelText(/Account ID/)).toBeInTheDocument()
+  expect(
+    screen.queryByText(
+      'For multiple Cloudflare accounts, enter one JSON object with account_id and api_key per line, or a JSON array of these objects.'
+    )
+  ).not.toBeInTheDocument()
+})
+
+test('Cloudflare Multiple Account explains account objects without a shared Account ID field', async () => {
+  editingChannel = {
+    ...editingChannel,
+    type: CHANNEL_TYPE_CLOUDFLARE_MULTI,
+    other: '',
+  }
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+  expect(
+    await screen.findByText(
+      'For multiple Cloudflare accounts, enter one JSON object with account_id and api_key per line, or a JSON array of these objects.'
+    )
+  ).toBeInTheDocument()
+  expect(screen.queryByLabelText(/Account ID/)).not.toBeInTheDocument()
+})
+
+test('Cloudflare account deduplication preserves JSON credentials', async () => {
+  const user = userEvent.setup()
+  render(<ConfigurationHarness />)
+  await user.click(
+    screen.getByRole('option', { name: /^Cloudflare Multiple Account / })
+  )
+  await user.click(screen.getByRole('combobox', { name: 'Add Mode' }))
+  await user.click(
+    screen.getByRole('option', {
+      name: 'Multi-Key Mode (multiple keys, one channel)',
+    })
+  )
+  const key = screen.getByLabelText('API Key *')
+  fireEvent.change(key, {
+    target: {
+      value:
+        '[\n{"account_id":"account-one","api_key":"key-one"},\n{"api_key":"key-one","account_id":"account-one"}\n]',
+    },
+  })
+  await user.click(screen.getByRole('button', { name: 'Remove Duplicates' }))
+  expect(key).toHaveValue(
+    '{"account_id":"account-one","api_key":"key-one"}'
+  )
+})
 
 beforeEach(() => {
   pluginOptions = plugins

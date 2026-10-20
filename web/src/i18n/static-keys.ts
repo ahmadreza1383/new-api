@@ -60,6 +60,8 @@ export const STATIC_I18N_KEYS = [
   'Connect to Dify applications and workflows',
   'Connect to Jina embedding and reranking services',
   'Access models through Cloudflare Workers AI',
+  'Cloudflare Multiple Account',
+  'Invalid Cloudflare account credentials: use JSON objects with account_id and api_key',
   'Connect to SiliconFlow model inference services',
   'Access models through Google Cloud Vertex AI',
   'Connect to Mistral AI model services',

@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import {
+  CHANNEL_TYPE_CLOUDFLARE_MULTI,
   CHANNEL_TYPES,
   CHANNEL_TYPE_VLLM,
   CHANNEL_TYPE_SGLANG,
@@ -49,6 +50,14 @@ export interface ChannelTypeConfig {
  * Configuration for each channel type
  */
 export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
+  [CHANNEL_TYPE_CLOUDFLARE_MULTI]: {
+    id: CHANNEL_TYPE_CLOUDFLARE_MULTI,
+    name: CHANNEL_TYPES[CHANNEL_TYPE_CLOUDFLARE_MULTI],
+    icon: 'Cloudflare',
+    hints: {
+      key: 'For multiple Cloudflare accounts, enter one JSON object with account_id and api_key per line, or a JSON array of these objects.',
+    },
+  },
   [CHANNEL_TYPE_SGLANG]: {
     id: CHANNEL_TYPE_SGLANG,
     name: CHANNEL_TYPES[CHANNEL_TYPE_SGLANG],

@@ -15,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/baidu_v2"
 	"github.com/QuantumNous/new-api/relay/channel/claude"
 	"github.com/QuantumNous/new-api/relay/channel/cloudflare"
+	"github.com/QuantumNous/new-api/relay/channel/cloudflaremulti"
 	"github.com/QuantumNous/new-api/relay/channel/codex"
 	"github.com/QuantumNous/new-api/relay/channel/cohere"
 	"github.com/QuantumNous/new-api/relay/channel/coze"
@@ -83,6 +84,8 @@ func GetAdaptor(apiType int) channel.Adaptor {
 		return &jina.Adaptor{}
 	case constant.APITypeCloudflare:
 		return &cloudflare.Adaptor{}
+	case constant.APITypeCloudflareMulti:
+		return &cloudflaremulti.Adaptor{}
 	case constant.APITypeSiliconFlow:
 		return &siliconflow.Adaptor{}
 	case constant.APITypeVertexAi:

@@ -41,6 +41,8 @@ func ChannelType2APIType(channelType int) (int, bool) {
 		apiType = constant.APITypeJina
 	case constant.ChannelCloudflare:
 		apiType = constant.APITypeCloudflare
+	case constant.ChannelCloudflareMulti:
+		apiType = constant.APITypeCloudflareMulti
 	case constant.ChannelTypeSiliconFlow:
 		apiType = constant.APITypeSiliconFlow
 	case constant.ChannelTypeVertexAi:

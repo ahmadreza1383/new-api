@@ -138,6 +138,7 @@ import {
 } from '../../api'
 import {
   ADD_MODE_OPTIONS,
+  CHANNEL_TYPE_CLOUDFLARE_MULTI,
   CLAUDE_FIELD_PASSTHROUGH_TYPES,
   CHANNEL_STATUS_LABELS,
   CHANNEL_TYPE_NEW_API,
@@ -184,6 +185,10 @@ import {
   findMissingModelsInMapping,
   validateModelMappingJson,
 } from '../../lib'
+import {
+  CLOUDFLARE_ACCOUNT_CREDENTIALS_ERROR,
+  normalizeCloudflareAccounts,
+} from '../../lib/cloudflare-multi-account'
 import {
   getChannelConfigurationSection,
   getChannelConfigurationState,
@@ -1145,7 +1150,16 @@ export function ChannelMutateDrawer({
       return
     }
 
-    const result = deduplicateKeys(currentKey)
+    let keys = currentKey
+    if (currentType === CHANNEL_TYPE_CLOUDFLARE_MULTI) {
+      try {
+        keys = normalizeCloudflareAccounts(currentKey).join('\n')
+      } catch {
+        toast.error(t(CLOUDFLARE_ACCOUNT_CREDENTIALS_ERROR))
+        return
+      }
+    }
+    const result = deduplicateKeys(keys)
 
     if (result.removedCount === 0) {
       toast.info(t('No duplicate keys found'))
@@ -4445,6 +4459,13 @@ export function ChannelMutateDrawer({
                       <FormDescription>
                         <span className='flex flex-col gap-2'>
                           <span>{keyDescription}</span>
+                          {currentType === CHANNEL_TYPE_CLOUDFLARE_MULTI && (
+                            <span>
+                              {t(
+                                'For multiple Cloudflare accounts, enter one JSON object with account_id and api_key per line, or a JSON array of these objects.'
+                              )}
+                            </span>
+                          )}
                           {!isEditing && isBatchMode && (
                             <Button
                               type='button'
